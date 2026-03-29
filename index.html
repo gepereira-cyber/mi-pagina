@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { border: none; border-radius: 12px; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        .price { font-size: 2rem; font-weight: bold; }
+        .symbol { color: #6c757d; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="container py-5">
+    <header class="pb-3 mb-4 border-bottom">
+        <span class="fs-4 fw-bold">📊 Market Monitor</span>
+    </header>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+
+        <div class="col">
+            <div class="card h-100 shadow-sm p-3">
+                <div class="symbol">S&P 500 ETF</div>
+                <h5 class="card-title">SPY</h5>
+                <div id="price-SPY" class="price">Cargando...</div>
+                <div id="date-SPY" class="text-muted small"></div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm p-3 border-start border-warning border-4">
+                <div class="symbol">Gold Futures</div>
+                <h5 class="card-title">GC=F</h5>
+                <div id="price-GOLD" class="price">Cargando...</div>
+                <div id="date-GOLD" class="text-muted small"></div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm p-3">
+                <div class="symbol">YPF Sociedad Anónima</div>
+                <h5 class="card-title">YPF</h5>
+                <div id="price-YPF" class="price">Cargando...</div>
+                <div id="date-YPF" class="text-muted small"></div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card h-100 shadow-sm p-3 border-start border-dark border-4">
+                <div class="symbol">Crude Oil</div>
+                <h5 class="card-title">CL=F</h5>
+                <div id="price-OIL" class="price">Cargando...</div>
+                <div id="date-OIL" class="text-muted small"></div>
+            </div>
+        </div>
+
+    </div>
+    
+    <div class="mt-4 text-center">
+        <button class="btn btn-primary" onclick="refreshData()">Actualizar Precios</button>
+    </div>
+</div>
+
+<script>
+    async function fetchPrice(ticker, elementId) {
+        try {
+            const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`);
+
+            if (!response.ok) throw new Error("Error en la API");
+
+            const data = await response.json();
+
+            const result = data.chart.result;
+            if (!result || !result[0]) throw new Error("Sin datos");
+
+            const quote = result[0].indicators.quote[0];
+            const price = quote.close[0];
+
+            if (!price) throw new Error("Precio inválido");
+
+            document.getElementById(`price-${elementId}`).innerText = `$${price.toFixed(2)}`;
+            document.getElementById(`date-${elementId}`).innerText = "Último cierre";
+
+        } catch (error) {
+            document.getElementById(`price-${elementId}`).innerText = "⚠️ Error";
+            document.getElementById(`date-${elementId}`).innerText = "No disponible";
+            console.error(`Error fetching ${ticker}:`, error);
+        }
+    }
+
+    function refreshData() {
+        fetchPrice('SPY', 'SPY');
+        fetchPrice('GC=F', 'GOLD');
+        fetchPrice('YPF', 'YPF');
+        fetchPrice('CL=F', 'OIL');
+    }
+
+    window.onload = refreshData;
+</script>
+
+</body>
+</html>
