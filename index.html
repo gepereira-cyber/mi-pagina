@@ -3,104 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Dashboard</title>
+    <title>Finanzas AR - Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .card { border: none; border-radius: 12px; transition: transform 0.2s; }
-        .card:hover { transform: translateY(-5px); }
-        .price { font-size: 2rem; font-weight: bold; }
-        .symbol { color: #6c757d; font-size: 0.9rem; }
+        body { background-color: #f1f3f5; font-family: 'Inter', sans-serif; }
+        .nav-link { cursor: pointer; font-weight: 600; }
+        .hidden { display: none; }
+        .card-finance { border-radius: 15px; border: none; cursor: pointer; transition: 0.2s; min-height: 120px; }
+        .card-finance:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .price-up { color: #28a745; }
+        .price-down { color: #dc3545; }
+        .table-container { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
 
-<div class="container py-5">
-    <header class="pb-3 mb-4 border-bottom">
-        <span class="fs-4 fw-bold">📊 Market Monitor</span>
-    </header>
-
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
-
-        <div class="col">
-            <div class="card h-100 shadow-sm p-3">
-                <div class="symbol">S&P 500 ETF</div>
-                <h5 class="card-title">SPY</h5>
-                <div id="price-SPY" class="price">Cargando...</div>
-                <div id="date-SPY" class="text-muted small"></div>
-            </div>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#">FINANZAS DASHBOARD</a>
+        <div class="navbar-nav">
+            <a class="nav-link active" id="nav-market" onclick="switchTab('market')">Acciones/ETFs</a>
+            <a class="nav-link" id="nav-bonds" onclick="switchTab('bonds')">Bonos Argentinos</a>
         </div>
-
-        <div class="col">
-            <div class="card h-100 shadow-sm p-3 border-start border-warning border-4">
-                <div class="symbol">Gold Futures</div>
-                <h5 class="card-title">GC=F</h5>
-                <div id="price-GOLD" class="price">Cargando...</div>
-                <div id="date-GOLD" class="text-muted small"></div>
-            </div>
-        </div>
-
-        <div class="col">
-            <div class="card h-100 shadow-sm p-3">
-                <div class="symbol">YPF Sociedad Anónima</div>
-                <h5 class="card-title">YPF</h5>
-                <div id="price-YPF" class="price">Cargando...</div>
-                <div id="date-YPF" class="text-muted small"></div>
-            </div>
-        </div>
-
-        <div class="col">
-            <div class="card h-100 shadow-sm p-3 border-start border-dark border-4">
-                <div class="symbol">Crude Oil</div>
-                <h5 class="card-title">CL=F</h5>
-                <div id="price-OIL" class="price">Cargando...</div>
-                <div id="date-OIL" class="text-muted small"></div>
-            </div>
-        </div>
-
     </div>
-    
-    <div class="mt-4 text-center">
-        <button class="btn btn-primary" onclick="refreshData()">Actualizar Precios</button>
+</nav>
+
+<div class="container">
+    <div id="section-market">
+        <div class="row g-4 mb-4">
+            <div class="col-md-3" id="card-SPY" onclick="loadChart('NYSE:SPY')"></div>
+            <div class="col-md-3" id="card-GC=F" onclick="loadChart('COMEX:GC1!')"></div>
+            <div class="col-md-3" id="card-YPF" onclick="loadChart('NYSE:YPF')"></div>
+            <div class="col-md-3" id="card-CL=F" onclick="loadChart('NYMEX:CL1!')"></div>
+        </div>
+        
+        <div class="bg-white p-3 rounded-4 shadow-sm" style="height: 550px;">
+            <div id="tradingview_widget" style="height: 100%;"></div>
+        </div>
+    </div>
+
+    <div id="section-bonds" class="hidden">
+        <div class="table-container">
+            <h3 class="fw-bold mb-4">Live Bonds Data (Data912)</h3>
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>TICKER (Symbol)</th>
+                        <th class="text-end">PRECIO (c)</th>
+                        <th class="text-end">VARIACIÓN (pct)</th>
+                    </tr>
+                </thead>
+                <tbody id="bonds-body"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
+<script src="https://s3.tradingview.com/tv.js"></script>
 <script>
-    async function fetchPrice(ticker, elementId) {
+    const tickers = ['SPY', 'GC=F', 'YPF', 'CL=F'];
+
+    // --- CARDS DE YFINANCE ---
+    async function fetchTickerCardData(ticker) {
+        const container = document.getElementById(`card-${ticker}`);
         try {
-            const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`);
-
-            if (!response.ok) throw new Error("Error en la API");
-
+            const response = await fetch(`http://localhost:8000/api/market/${ticker}`);
             const data = await response.json();
+            const isUp = !data.pct_change.startsWith('-');
 
-            const result = data.chart.result;
-            if (!result || !result[0]) throw new Error("Sin datos");
-
-            const quote = result[0].indicators.quote[0];
-            const price = quote.close[0];
-
-            if (!price) throw new Error("Precio inválido");
-
-            document.getElementById(`price-${elementId}`).innerText = `$${price.toFixed(2)}`;
-            document.getElementById(`date-${elementId}`).innerText = "Último cierre";
-
-        } catch (error) {
-            document.getElementById(`price-${elementId}`).innerText = "⚠️ Error";
-            document.getElementById(`date-${elementId}`).innerText = "No disponible";
-            console.error(`Error fetching ${ticker}:`, error);
+            container.innerHTML = `
+                <div class="card card-finance shadow-sm p-4 bg-white border-top border-4 ${isUp ? 'border-success' : 'border-danger'}">
+                    <div class="text-secondary small fw-bold">${data.symbol}</div>
+                    <h2 class="fw-bold mb-0">$${data.price}</h2>
+                    <span class="${isUp ? 'price-up' : 'price-down'} fw-medium">
+                        ${isUp ? '▲' : '▼'} ${data.pct_change}
+                    </span>
+                </div>`;
+        } catch (e) {
+            container.innerHTML = `<div class="alert alert-danger">Error</div>`;
         }
     }
 
-    function refreshData() {
-        fetchPrice('SPY', 'SPY');
-        fetchPrice('GC=F', 'GOLD');
-        fetchPrice('YPF', 'YPF');
-        fetchPrice('CL=F', 'OIL');
+    // --- TABLA DE BONOS ---
+    async function fetchBonds() {
+        const tbody = document.getElementById('bonds-body');
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center">Cargando...</td></tr>';
+        const response = await fetch('http://localhost:8000/api/bonds');
+        const data = await response.json();
+        
+        tbody.innerHTML = '';
+        data.forEach(bond => {
+            const val = parseFloat(bond.change);
+            const color = val >= 0 ? 'text-success' : 'text-danger';
+            tbody.innerHTML += `
+                <tr>
+                    <td class="fw-bold">${bond.ticker}</td>
+                    <td class="text-end fw-bold">$${bond.price}</td>
+                    <td class="text-end ${color} fw-bold">${val >= 0 ? '+' : ''}${bond.change}%</td>
+                </tr>`;
+        });
     }
 
-    window.onload = refreshData;
-</script>
+    // --- UTILIDADES ---
+    function switchTab(tab) {
+        document.getElementById('section-market').classList.toggle('hidden', tab !== 'market');
+        document.getElementById('section-bonds').classList.toggle('hidden', tab !== 'bonds');
+        document.getElementById('nav-market').classList.toggle('active', tab === 'market');
+        document.getElementById('nav-bonds').classList.toggle('active', tab === 'bonds');
+        if(tab === 'bonds') fetchBonds();
+    }
 
+    function loadChart(symbol) {
+        new TradingView.widget({
+            "autosize": true, "symbol": symbol, "interval": "D", "theme": "light",
+            "style": "1", "locale": "es", "container_id": "tradingview_widget"
+        });
+    }
+
+    window.onload = () => {
+        tickers.forEach(t => fetchTickerCardData(t));
+        loadChart('NYSE:YPF');
+    };
+</script>
 </body>
 </html>
